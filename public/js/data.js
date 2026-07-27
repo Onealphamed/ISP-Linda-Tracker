@@ -234,11 +234,28 @@ function buildRecords(rows) {
   const hi = findHeaderRow(rows);
   const headers = rows[hi].map((h) => String(h).trim());
   const colmap = mapColumns(headers);
-  const phase = extractPhase(headers) || PROJECT.defaultPhase || "Phase 1";
   const cell = (row, role) => { const i = colmap[role]; return i == null || i >= row.length ? "" : String(row[i] || "").trim(); };
+
+  // Multiple phases can be stacked in one sheet: the phase label lives in a
+  // "Phase N: …" banner/header row, and every deliverable below it belongs to
+  // that phase until the next banner. Seed from the top header, then update as
+  // we scan so re-ordered or added phases are picked up with no code change.
+  let currentPhase = extractPhase(headers) || PROJECT.defaultPhase || "Phase 1";
+  const phasesSeen = [];
+  const notePhase = (p) => { if (p && !phasesSeen.includes(p)) phasesSeen.push(p); };
+  notePhase(currentPhase);
 
   const records = [];
   rows.slice(hi + 1).forEach((row, ridx) => {
+    // A phase banner or a repeated column-header row: capture the phase and skip.
+    // Guard against a real deliverable that merely mentions "phase" — a banner
+    // is sparse (few populated cells) or looks like a header.
+    const headerish = isHeaderish(row);
+    const nonEmpty = row.filter((c) => String(c).trim()).length;
+    const bannerPhase = detectPhaseCell(row);
+    if (bannerPhase && (nonEmpty <= 3 || headerish)) { currentPhase = bannerPhase; notePhase(currentPhase); return; }
+    if (headerish) return; // repeated header row — not data
+
     const name = cell(row, "deliverable");
     if (!name) return;
 
@@ -272,7 +289,7 @@ function buildRecords(rows) {
     });
 
     records.push({
-      id: cell(row, "sr_no") || String(ridx + 1), phase, deliverable: name, qty: toInt(cell(row, "qty")),
+      id: cell(row, "sr_no") || String(ridx + 1), phase: currentPhase, deliverable: name, qty: toInt(cell(row, "qty")),
       start: startD, end: endD, actual: actualD, meeting: meetingD,
       tat: toInt(cell(row, "tat")), status: rawStatus || STATUS_LABELS_D[scls], status_class: scls, status_label: STATUS_LABELS_D[scls],
       priority: cell(row, "priority"), owner_oam: cell(row, "owner_oam"), owner_hetero: cell(row, "owner_hetero"),
@@ -286,7 +303,27 @@ function buildRecords(rows) {
 
   const detected = {};
   for (const [k, v] of Object.entries(colmap)) if (v < headers.length) detected[k] = headers[v];
-  return { ...base, ok: true, phase, columns_detected: detected, records, updated_at: new Date().toISOString() };
+  const phases = phasesSeen.filter((p) => records.some((r) => r.phase === p));
+  return { ...base, ok: true, phase: phases[0] || currentPhase, phases, columns_detected: detected, records, updated_at: new Date().toISOString() };
+}
+
+// A row is a "phase banner" if one of its cells names a phase ("Phase 2: …").
+// Returns the phase label, or "" if this isn't a banner row.
+function detectPhaseCell(row) {
+  for (const c of row) {
+    const m = String(c || "").match(/phase\s*[\dIVX]+\b.*/i);
+    if (m) return m[0].trim();
+  }
+  return "";
+}
+
+// True when a row looks like a (repeated) column-header rather than data —
+// several of its cells match known column keywords.
+function isHeaderish(row) {
+  const allKw = COLUMN_SYNONYMS.flatMap(([, ks]) => ks);
+  let hits = 0;
+  for (const c of row) { const v = norm(c); if (v && allKw.some((kw) => v === kw || v.includes(kw))) hits++; }
+  return hits >= 3;
 }
 
 /* today (optionally pinned via ?today=YYYY-MM-DD for testing) */

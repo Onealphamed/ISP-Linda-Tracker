@@ -8,7 +8,7 @@ const STATE = {
   payload: null,
   records: [],
   filtered: [],
-  filters: { status: "", owner: "", health: "", month: "", search: "" },
+  filters: { phase: "", status: "", owner: "", health: "", month: "", search: "" },
   view: "executive",
   today: new Date(),
   calMonth: null, // {y, m}
@@ -95,11 +95,13 @@ function applyPayload(data) {
 
 /* ─── Filters ────────────────────────────────────────────────────── */
 function populateFilters() {
-  const owners = new Set(), months = new Set();
+  const owners = new Set(), months = new Set(), phases = [];
   STATE.records.forEach((r) => {
     (r.owners.length ? r.owners : ["Unassigned"]).forEach((o) => owners.add(o));
     const mk = monthKey(r.end); if (mk) months.add(mk);
+    if (r.phase && !phases.includes(r.phase)) phases.push(r.phase);
   });
+  fillSelect('[data-filter="phase"]', phases.map((p) => [p, p]), "All Phases");
   const statusOpts = ["done", "in_progress", "review", "blocked", "not_started"].filter((s) => STATE.records.some((r) => r.status_class === s));
   fillSelect('[data-filter="status"]', statusOpts.map((s) => [s, STATUS_LABELS[s]]), "All Status");
   fillSelect('[data-filter="owner"]', [...owners].sort().map((o) => [o, o]), "All Owners");
@@ -115,6 +117,7 @@ function fillSelect(sel, opts, allLabel) {
 function applyFilters() {
   const f = STATE.filters;
   STATE.filtered = STATE.records.filter((r) => {
+    if (f.phase && r.phase !== f.phase) return false;
     if (f.status && r.status_class !== f.status) return false;
     if (f.health && r.health !== f.health) return false;
     if (f.owner) { const os = r.owners.length ? r.owners : ["Unassigned"]; if (!os.includes(f.owner)) return false; }
@@ -262,7 +265,7 @@ function drawGantt(recs) {
     <div class="gantt-track" style="width:${width}px">${ticks.map((t) => `<div class="gantt-tick" style="position:absolute;left:${t.left}px;width:${unitDays * pxPerDay}px">${t.label}</div>`).join("")}
     <div style="position:absolute;left:${todayLeft}px;top:0;bottom:0;width:2px;background:var(--brand);opacity:.6"></div></div></div>`;
 
-  const rows = recs.map((r) => {
+  const bar = (r) => {
     const s = parseISO(r.start) || parseISO(r.end);
     const e = parseISO(r.end) || parseISO(r.start);
     const left = (s - min) / 864e5 * pxPerDay;
@@ -274,6 +277,18 @@ function drawGantt(recs) {
         <div class="gbar ${cls}" style="left:${left}px;width:${w}px" onclick="openModal('${esc(r.id)}')" title="${esc(r.deliverable)} · ${fmtDate(r.start)}→${fmtDate(r.end)}">
           <span class="gfill" style="width:${r.progress}%"></span><span style="position:relative">${w > 46 ? r.progress + "%" : ""}</span>
         </div></div></div>`;
+  };
+
+  // Group bars by phase, ordered by each phase's earliest date. Show a phase
+  // separator row only when more than one phase is present.
+  const byPhase = {};
+  recs.forEach((r) => (byPhase[r.phase] ||= []).push(r));
+  const earliest = (arr) => Math.min(...arr.map((r) => +(parseISO(r.start || r.end) || 1e15)));
+  const phaseOrder = Object.keys(byPhase).sort((a, b) => earliest(byPhase[a]) - earliest(byPhase[b]));
+  const multi = phaseOrder.length > 1;
+  const rows = phaseOrder.map((ph) => {
+    const sep = multi ? `<div class="gantt-row" style="background:var(--surface-2)"><div class="gantt-label" style="font-weight:700;color:var(--brand)">${esc(ph)}</div><div class="gantt-track" style="width:${width}px"></div></div>` : "";
+    return sep + byPhase[ph].map(bar).join("");
   }).join("");
   $("#ganttInner").innerHTML = head + rows;
 }
@@ -481,7 +496,7 @@ function bindEvents() {
   $$(".tab").forEach((t) => t.onclick = () => renderView(t.dataset.view));
   $$(".fsel").forEach((s) => s.onchange = () => { STATE.filters[s.dataset.filter] = s.value; applyFilters(); });
   $("#clearFilters").onclick = () => {
-    STATE.filters = { status: "", owner: "", health: "", month: "", search: "" };
+    STATE.filters = { phase: "", status: "", owner: "", health: "", month: "", search: "" };
     $$(".fsel").forEach((s) => (s.value = ""));
     $("#globalSearch").value = "";
     applyFilters();
@@ -489,13 +504,7 @@ function bindEvents() {
   let searchT;
   $("#globalSearch").oninput = (e) => { clearTimeout(searchT); searchT = setTimeout(() => { STATE.filters.search = e.target.value.trim(); applyFilters(); }, 220); };
 
-  $("#refreshBtn").onclick = () => { const b = $("#refreshBtn"); b.classList.add("spinning"); loadLive().finally(() => b.classList.remove("spinning")); };
-  $("#uploadInput").onchange = async (e) => {
-    const file = e.target.files[0]; if (!file) return;
-    STATE.calMonth = null;
-    await loadData(() => DataEngine.parseWorkbookFile(file), `Reading ${file.name}…`);
-    e.target.value = "";
-  };
+  $("#liveSheetBtn").onclick = () => { const b = $("#liveSheetBtn"); b.classList.add("spinning"); loadLive().finally(() => b.classList.remove("spinning")); };
   $("#sourceBadge").onclick = () => { if (STATE.payload?.source === "upload") { STATE.calMonth = null; loadLive(); } };
 
   $("#themeBtn").onclick = () => {

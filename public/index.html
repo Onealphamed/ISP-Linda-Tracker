@@ -27,15 +27,10 @@
         <svg viewBox="0 0 24 24" class="ic"><path d="M21 21l-4.3-4.3M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
         <input id="globalSearch" type="text" placeholder="Search deliverable, owner, status…" autocomplete="off" />
       </div>
-      <button id="refreshBtn" class="btn btn-ghost" title="Refresh from live sheet">
+      <button id="liveSheetBtn" class="btn btn-ghost" title="Load the latest data from the live Google Sheet">
         <svg viewBox="0 0 24 24" class="ic"><path d="M21 12a9 9 0 11-2.6-6.4M21 3v6h-6"/></svg>
-        <span class="lbl">Refresh</span>
+        <span class="lbl">Live Sheet</span>
       </button>
-      <label class="btn btn-ghost" title="Upload a workbook">
-        <svg viewBox="0 0 24 24" class="ic"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 20h16"/></svg>
-        <span class="lbl">Upload Excel</span>
-        <input id="uploadInput" type="file" accept=".xlsx,.xls,.xlsm,.csv" hidden />
-      </label>
       <button id="themeBtn" class="btn btn-icon" title="Toggle theme">
         <svg viewBox="0 0 24 24" class="ic ic-sun"><path d="M12 3v2m0 14v2M5.6 5.6l1.4 1.4m10 10l1.4 1.4M3 12h2m14 0h2M5.6 18.4l1.4-1.4m10-10l1.4-1.4M12 8a4 4 0 100 8 4 4 0 000-8z"/></svg>
         <svg viewBox="0 0 24 24" class="ic ic-moon"><path d="M21 12.8A9 9 0 1111.2 3 7 7 0 0021 12.8z"/></svg>
@@ -52,6 +47,7 @@
   </nav>
 
   <div class="filterbar" id="filterbar">
+    <select class="fsel" data-filter="phase"><option value="">All Phases</option></select>
     <select class="fsel" data-filter="status"><option value="">All Status</option></select>
     <select class="fsel" data-filter="owner"><option value="">All Owners</option></select>
     <select class="fsel" data-filter="health"><option value="">All Health</option></select>

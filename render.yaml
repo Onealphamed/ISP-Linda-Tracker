@@ -5,7 +5,7 @@
 services:
   - type: web
     runtime: static
-    name: isp-linda-tracker
+    name: esc-dashboard
     staticPublishPath: ./public
     # No build step — pure static assets.
     buildCommand: ""
