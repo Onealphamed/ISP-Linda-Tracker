@@ -19,7 +19,7 @@
       <div class="brand-mark">ESC</div>
       <div class="brand-text">
         <h1 id="projectTitle">ESC Dashboard</h1>
-        <p id="projectSub"><span class="chip chip-client">Hetero ISP</span><span class="chip chip-assoc">Prof. Linda</span><span id="phaseChip" class="chip chip-phase"></span></p>
+        <p id="projectSub"><span id="phaseChip" class="chip chip-phase"></span></p>
       </div>
     </div>
     <div class="topbar-actions">
@@ -33,7 +33,7 @@
       </button>
       <label class="btn btn-ghost" title="Upload a workbook">
         <svg viewBox="0 0 24 24" class="ic"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 20h16"/></svg>
-        <span class="lbl">Upload</span>
+        <span class="lbl">Upload Excel</span>
         <input id="uploadInput" type="file" accept=".xlsx,.xls,.xlsm,.csv" hidden />
       </label>
       <button id="themeBtn" class="btn btn-icon" title="Toggle theme">
@@ -49,10 +49,6 @@
     <button class="tab" data-view="deliverables">Deliverables</button>
     <button class="tab" data-view="calendar">Calendar</button>
     <button class="tab" data-view="pending">Pending Actions</button>
-    <button class="tab" data-view="workload">Team Workload</button>
-    <button class="tab" data-view="health">Project Health</button>
-    <button class="tab" data-view="risks">Risks</button>
-    <button class="tab" data-view="charts">Charts</button>
   </nav>
 
   <div class="filterbar" id="filterbar">
@@ -73,10 +69,6 @@
     <section class="view" id="view-deliverables"></section>
     <section class="view" id="view-calendar"></section>
     <section class="view" id="view-pending"></section>
-    <section class="view" id="view-workload"></section>
-    <section class="view" id="view-health"></section>
-    <section class="view" id="view-risks"></section>
-    <section class="view" id="view-charts"></section>
   </main>
 
   <div id="loader" class="loader"><div class="spinner"></div><p id="loaderText">Loading live data…</p></div>

@@ -73,7 +73,7 @@ function loadLiveData(timeoutMs = 12000) {
         const rows = gvizToRows(resp.table);
         const payload = buildRecords(rows);
         payload.source = "google-sheet";
-        payload.source_name = "Live Google Sheet";
+        payload.source_name = "Live Sheet";
         resolve(payload);
       } catch (e) { reject(e); }
     };

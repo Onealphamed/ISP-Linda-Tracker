@@ -86,7 +86,7 @@ function applyPayload(data) {
   $("#phaseChip").textContent = data.phase || "";
   $("#phaseChip").style.display = data.phase ? "" : "none";
   const badge = $("#sourceBadge");
-  badge.textContent = data.source === "upload" ? `Uploaded: ${data.source_name} · click to go live` : "Live Google Sheet";
+  badge.textContent = data.source === "upload" ? `Uploaded: ${data.source_name} · click for Live Sheet` : "Live Sheet";
   badge.className = "src-badge" + (data.source === "upload" ? " upload" : "");
   $("#updatedAt").textContent = "Updated " + new Date(data.updated_at).toLocaleString("en-GB", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" });
   populateFilters();
@@ -132,8 +132,7 @@ function applyFilters() {
 /* ─── View routing ───────────────────────────────────────────────── */
 const RENDERERS = {
   executive: renderExecutive, timeline: renderTimeline, deliverables: renderDeliverables,
-  calendar: renderCalendar, pending: renderPending, workload: renderWorkload,
-  health: renderHealth, risks: renderRisks, charts: renderCharts,
+  calendar: renderCalendar, pending: renderPending,
 };
 function renderView(v) {
   STATE.view = v;
@@ -390,138 +389,6 @@ function renderPending() {
     </div>`).join("")}</div>`;
 }
 
-/* ─── 6. Team Workload ───────────────────────────────────────────── */
-function renderWorkload() {
-  const map = {};
-  STATE.filtered.forEach((r) => {
-    (r.owners.length ? r.owners : ["Unassigned"]).forEach((o) => {
-      const w = (map[o] ||= { name: o, total: 0, done: 0, pending: 0, delayed: 0, prog: 0 });
-      w.total++; w.prog += r.progress;
-      if (r.status_class === "done") w.done++; else w.pending++;
-      if (r.delay > 0) w.delayed++;
-    });
-  });
-  const people = Object.values(map).sort((a, b) => b.total - a.total);
-  const host = $("#view-workload");
-  if (!people.length) { host.innerHTML = `<div class="panel">${emptyBlock("No owners found in the data.")}</div>`; return; }
-  host.innerHTML = `
-    <div class="grid-2">
-      <div class="panel"><div class="panel-head"><h3>Tasks per Owner</h3></div><div class="chart-box"><canvas id="wlBar"></canvas></div></div>
-      <div class="panel"><div class="panel-head"><h3>Completed vs Pending</h3></div><div class="chart-box"><canvas id="wlStack"></canvas></div></div>
-    </div>
-    <div class="panel"><div class="panel-head"><h3>Workload Detail</h3><small>${people.length} owners</small></div>
-      ${people.map((w) => {
-        const avg = Math.round(w.prog / w.total);
-        return `<div class="wl-card">
-          ${avatar(w.name)}
-          <div class="wl-meta"><div class="wl-name">${esc(w.name)}</div>
-            <div class="wl-stats"><span>Total <b>${w.total}</b></span><span>Done <b>${w.done}</b></span><span>Pending <b>${w.pending}</b></span><span>Delayed <b style="color:var(--red)">${w.delayed}</b></span></div>
-          </div>
-          <div class="wl-prog"><div style="font-size:11px;color:var(--text-faint);margin-bottom:4px">Avg progress ${avg}%</div><div class="pbar ${avg >= 66 ? "g" : avg >= 33 ? "a" : "r"}"><i style="width:${avg}%"></i></div></div>
-        </div>`;
-      }).join("")}
-    </div>`;
-  drawWorkloadCharts(people);
-}
-
-/* ─── 7. Project Health ──────────────────────────────────────────── */
-function renderHealth() {
-  const recs = STATE.filtered;
-  const bands = { done: 0, green: 0, yellow: 0, orange: 0, red: 0 };
-  recs.forEach((r) => bands[r.health]++);
-  const n = recs.length || 1;
-  // score: weighted — done/green full, yellow .7, orange .4, red 0
-  const score = Math.round((bands.done + bands.green + bands.yellow * 0.7 + bands.orange * 0.4) / n * 100);
-  const scoreColor = score >= 80 ? "#12b76a" : score >= 60 ? "#eab308" : score >= 40 ? "#f79009" : "#d92d20";
-  const scoreLabel = score >= 80 ? "Healthy" : score >= 60 ? "Watch" : score >= 40 ? "At Risk" : "Critical";
-  const circ = 2 * Math.PI * 85;
-
-  const legend = [["done", "Completed"], ["green", "On Track"], ["yellow", "Minor Delay (<5d)"], ["orange", "Medium Delay (5–10d)"], ["red", "Critical (>10d)"]]
-    .map(([k, label]) => `<div class="hl-row">
-      <span class="pill h-${k}" style="min-width:96px;justify-content:center">${label}</span>
-      <div class="hl-bar"><i style="width:${bands[k] / n * 100}%;background:${HEALTH_COLORS[k]}"></i></div>
-      <span class="hl-count">${bands[k]}</span></div>`).join("");
-
-  $("#view-health").innerHTML = `
-    <div class="panel">
-      <div class="health-hero">
-        <div class="gauge">
-          <svg viewBox="0 0 200 200" style="transform:rotate(-90deg)">
-            <circle cx="100" cy="100" r="85" fill="none" stroke="var(--border)" stroke-width="16"/>
-            <circle cx="100" cy="100" r="85" fill="none" stroke="${scoreColor}" stroke-width="16" stroke-linecap="round"
-              stroke-dasharray="${circ}" stroke-dashoffset="${circ * (1 - score / 100)}" style="transition:stroke-dashoffset .8s ease"/>
-          </svg>
-          <div class="score"><b style="color:${scoreColor}">${score}</b><span>Health Score<br>${scoreLabel}</span></div>
-        </div>
-        <div>
-          <div class="section-title">Overall Project Health <small>derived from delay against end dates</small></div>
-          <div class="health-legend">${legend}</div>
-        </div>
-      </div>
-    </div>
-    <div class="panel"><div class="panel-head"><h3>Deliverables Needing Attention</h3><small>orange &amp; red health</small></div>
-      ${renderMiniTable(recs.filter((r) => ["orange", "red"].includes(r.health)).sort((a, b) => b.delay - a.delay).slice(0, 12))}
-    </div>`;
-}
-
-/* ─── 8. Risks ───────────────────────────────────────────────────── */
-function renderRisks() {
-  const recs = STATE.filtered;
-  const risks = [];
-  const push = (sev, tag, title, desc, r) => risks.push({ sev, tag, title, desc, r });
-  recs.forEach((r) => {
-    if (r.delay > 10) push("red", "Critical Delay", r.deliverable, `${r.delay} days past due (${fmtDate(r.end)}) · owner ${r.primary_owner}`, r);
-    else if (r.overdue) push("orange", "Missed Deadline", r.deliverable, `${r.delay} days overdue · ${STATUS_LABELS[r.status_class]}`, r);
-    if (r.status_class === "blocked") push("orange", "Blocked Task", r.deliverable, `Marked "${r.status}" · owner ${r.primary_owner}`, r);
-    if (r.dependencies && !r.overdue) push("yellow", "Dependency", r.deliverable, `Depends on: ${r.dependencies}`, r);
-    if (r.missing_owner) push("yellow", "Missing Owner", r.deliverable, `No owner assigned · due ${fmtDate(r.end)}`, r);
-    if (r.approval && !/^(approved|done|yes)$/i.test(r.approval)) push("yellow", "Pending Approval", r.deliverable, `Approval: ${r.approval}`, r);
-  });
-  // high workload risk
-  const load = {};
-  recs.forEach((r) => (r.owners.length ? r.owners : ["Unassigned"]).forEach((o) => { if (r.status_class !== "done") load[o] = (load[o] || 0) + 1; }));
-  Object.entries(load).filter(([o, c]) => c >= 15 && o !== "Unassigned").forEach(([o, c]) => risks.push({ sev: "yellow", tag: "High Workload", title: o, desc: `${c} open deliverables assigned`, r: null }));
-
-  const sevOrder = { red: 0, orange: 1, yellow: 2 };
-  risks.sort((a, b) => sevOrder[a.sev] - sevOrder[b.sev]);
-  const host = $("#view-risks");
-  const counts = { red: risks.filter((x) => x.sev === "red").length, orange: risks.filter((x) => x.sev === "orange").length, yellow: risks.filter((x) => x.sev === "yellow").length };
-  host.innerHTML = `
-    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);max-width:600px">
-      <div class="kpi" style="--accent:#d92d20;--accent-bg:var(--red-bg)"><div class="kpi-val" style="color:#d92d20">${counts.red}</div><div class="kpi-label">Critical Risks</div></div>
-      <div class="kpi" style="--accent:#f04438;--accent-bg:var(--orange-bg)"><div class="kpi-val" style="color:#f04438">${counts.orange}</div><div class="kpi-label">Medium Risks</div></div>
-      <div class="kpi" style="--accent:#eab308;--accent-bg:var(--yellow-bg)"><div class="kpi-val" style="color:#a97a06">${counts.yellow}</div><div class="kpi-label">Low Risks</div></div>
-    </div>
-    <div class="panel"><div class="panel-head"><h3>Identified Risks</h3><small>auto-detected · ${risks.length} total</small></div>
-      ${risks.length ? risks.map((x) => `
-        <div class="risk-item" ${x.r ? `onclick="openModal('${esc(x.r.id)}')" style="cursor:pointer"` : ""}>
-          <div class="risk-sev" style="background:${HEALTH_COLORS[x.sev]}"></div>
-          <div class="risk-body"><div class="risk-title">${esc(x.title)}<span class="risk-tag" style="background:${x.sev === "red" ? "var(--red-bg)" : x.sev === "orange" ? "var(--orange-bg)" : "var(--yellow-bg)"};color:${HEALTH_COLORS[x.sev]}">${esc(x.tag)}</span></div>
-          <div class="risk-desc">${esc(x.desc)}</div></div>
-        </div>`).join("") : emptyBlock("No active risks detected.")}
-    </div>`;
-}
-
-/* ─── 9. Charts ──────────────────────────────────────────────────── */
-function renderCharts() {
-  $("#view-charts").innerHTML = `
-    <div class="grid-2">
-      <div class="panel"><div class="panel-head"><h3>Status Distribution</h3></div><div class="chart-box"><canvas id="chStatus"></canvas></div></div>
-      <div class="panel"><div class="panel-head"><h3>Health Distribution</h3></div><div class="chart-box"><canvas id="chHealth"></canvas></div></div>
-    </div>
-    <div class="panel"><div class="panel-head"><h3>Deliverables by Owner</h3></div><div class="chart-box tall"><canvas id="chOwner"></canvas></div></div>
-    <div class="grid-2">
-      <div class="panel"><div class="panel-head"><h3>Monthly Deadline Trend</h3></div><div class="chart-box"><canvas id="chTrend"></canvas></div></div>
-      <div class="panel"><div class="panel-head"><h3>Progress Buckets</h3></div><div class="chart-box"><canvas id="chProg"></canvas></div></div>
-    </div>`;
-  const recs = STATE.filtered;
-  drawStatusChart("chStatus", recs);
-  drawHealthChart("chHealth", recs);
-  drawOwnerChart("chOwner", recs);
-  drawMonthlyChart("chTrend", recs, "line");
-  drawProgressBuckets("chProg", recs);
-}
-
 /* ─── Chart builders ─────────────────────────────────────────────── */
 function destroyChart(id) { if (STATE.charts[id]) { STATE.charts[id].destroy(); delete STATE.charts[id]; } }
 function themeTicks() { return getComputedStyle(document.body).getPropertyValue("--text-soft") || "#5a6577"; }
@@ -563,52 +430,6 @@ function drawMonthlyChart(id, recs, type = "bar") {
       { label: "Completed", data: keys.map((k) => done[k] || 0), backgroundColor: "rgba(18,183,106,.75)", borderColor: "#12b76a", borderWidth: 2, borderRadius: 6, tension: .35, fill: false },
     ] },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: themeTicks(), usePointStyle: true, boxWidth: 8 } } }, scales: { x: { ticks: { color: themeTicks() }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: themeTicks(), precision: 0 }, grid: { color: gridColor() } } } },
-  });
-}
-function drawOwnerChart(id, recs) {
-  destroyChart(id);
-  const done = {}, pending = {};
-  recs.forEach((r) => (r.owners.length ? r.owners : ["Unassigned"]).forEach((o) => { if (r.status_class === "done") done[o] = (done[o] || 0) + 1; else pending[o] = (pending[o] || 0) + 1; }));
-  const owners = [...new Set([...Object.keys(done), ...Object.keys(pending)])].sort((a, b) => ((done[b] || 0) + (pending[b] || 0)) - ((done[a] || 0) + (pending[a] || 0)));
-  const el = $("#" + id); if (!el) return;
-  STATE.charts[id] = new Chart(el, {
-    type: "bar",
-    data: { labels: owners, datasets: [
-      { label: "Completed", data: owners.map((o) => done[o] || 0), backgroundColor: "#12b76a", borderRadius: 5, stack: "s" },
-      { label: "Pending", data: owners.map((o) => pending[o] || 0), backgroundColor: "#f79009", borderRadius: 5, stack: "s" },
-    ] },
-    options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: themeTicks(), usePointStyle: true, boxWidth: 8 } } }, scales: { x: { stacked: true, beginAtZero: true, ticks: { color: themeTicks(), precision: 0 }, grid: { color: gridColor() } }, y: { stacked: true, ticks: { color: themeTicks() }, grid: { display: false } } } },
-  });
-}
-function drawProgressBuckets(id, recs) {
-  destroyChart(id);
-  const buckets = { "0%": 0, "1–25%": 0, "26–50%": 0, "51–75%": 0, "76–99%": 0, "100%": 0 };
-  recs.forEach((r) => { const p = r.progress; buckets[p === 0 ? "0%" : p === 100 ? "100%" : p <= 25 ? "1–25%" : p <= 50 ? "26–50%" : p <= 75 ? "51–75%" : "76–99%"]++; });
-  const el = $("#" + id); if (!el) return;
-  STATE.charts[id] = new Chart(el, {
-    type: "bar",
-    data: { labels: Object.keys(buckets), datasets: [{ label: "Deliverables", data: Object.values(buckets), backgroundColor: ["#98a2b3", "#f04438", "#f79009", "#eab308", "#2e90fa", "#12b76a"], borderRadius: 6 }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: themeTicks() }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: themeTicks(), precision: 0 }, grid: { color: gridColor() } } } },
-  });
-}
-function drawWorkloadCharts(people) {
-  const top = people.slice(0, 12);
-  destroyChart("wlBar");
-  const el1 = $("#wlBar");
-  if (el1) STATE.charts["wlBar"] = new Chart(el1, {
-    type: "bar",
-    data: { labels: top.map((p) => p.name), datasets: [{ label: "Tasks", data: top.map((p) => p.total), backgroundColor: top.map((p) => avatarColor(p.name)), borderRadius: 6 }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: themeTicks() }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: themeTicks(), precision: 0 }, grid: { color: gridColor() } } } },
-  });
-  destroyChart("wlStack");
-  const el2 = $("#wlStack");
-  if (el2) STATE.charts["wlStack"] = new Chart(el2, {
-    type: "bar",
-    data: { labels: top.map((p) => p.name), datasets: [
-      { label: "Done", data: top.map((p) => p.done), backgroundColor: "#12b76a", borderRadius: 5, stack: "s" },
-      { label: "Pending", data: top.map((p) => p.pending), backgroundColor: "#f79009", borderRadius: 5, stack: "s" },
-    ] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: themeTicks(), usePointStyle: true, boxWidth: 8 } } }, scales: { x: { stacked: true, ticks: { color: themeTicks() }, grid: { display: false } }, y: { stacked: true, beginAtZero: true, ticks: { color: themeTicks(), precision: 0 }, grid: { color: gridColor() } } } },
   });
 }
 
