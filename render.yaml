@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: isp-linda-tracker
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 2
+    envVars:
+      - key: TRACKER_SHEET_ID
+        value: 1Rzqvjm8rqbRsYB9LTu3P9FPWVTD1VZdAapKbXRdIYAI
+      - key: TRACKER_SHEET_TAB
+        sync: false
+      - key: PROJECT_NAME
+        value: Hetero ISP — Prof. Linda
+      - key: PROJECT_CLIENT
+        value: Hetero
+      - key: PROJECT_ASSOCIATION
+        value: ESC
+      - key: SECRET_KEY
+        generateValue: true
