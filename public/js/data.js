@@ -6,7 +6,7 @@
    ══════════════════════════════════════════════════════════════════ */
 
 const PROJECT = {
-  name: "Hetero ISP — Prof. Linda",
+  name: "ESC Dashboard",
   client: "Hetero",
   association: "ESC",
   sheetId: "1Rzqvjm8rqbRsYB9LTu3P9FPWVTD1VZdAapKbXRdIYAI",

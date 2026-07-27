@@ -1,7 +1,7 @@
-# Hetero ISP — Prof. Linda · Project Tracker
+# ESC Dashboard — Hetero ISP (Prof. Linda)
 
-A live, interactive project-management dashboard for the **Hetero ISP
-(Prof. Linda) / ESC endorsement program**. It is a **pure static site** —
+A live, interactive project-management dashboard ("**ESC Dashboard**") for
+the **Hetero ISP (Prof. Linda) / ESC endorsement program**. It is a **pure static site** —
 no backend. The browser reads the Google Sheet workbook live via Google's
 **gviz JSONP** endpoint (CORS-safe) and parses Excel/CSV uploads in-browser
 with **SheetJS**. Deployed as a Render **Static Site** (free, never sleeps).
