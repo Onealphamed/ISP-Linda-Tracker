@@ -73,6 +73,7 @@ const loadLive = () => loadData(() => DataEngine.loadLiveData());
 
 function applyPayload(data) {
   STATE.payload = data;
+  STATE._lastLoad = Date.now();
   STATE.records = data.records || [];
   STATE.today = parseISO(data.today) || new Date();
   // default calendar month = earliest end date, else today
@@ -504,8 +505,9 @@ function bindEvents() {
   let searchT;
   $("#globalSearch").oninput = (e) => { clearTimeout(searchT); searchT = setTimeout(() => { STATE.filters.search = e.target.value.trim(); applyFilters(); }, 220); };
 
-  $("#liveSheetBtn").onclick = () => { const b = $("#liveSheetBtn"); b.classList.add("spinning"); loadLive().finally(() => b.classList.remove("spinning")); };
-  $("#sourceBadge").onclick = () => { if (STATE.payload?.source === "upload") { STATE.calMonth = null; loadLive(); } };
+  // "Live Sheet" opens the actual Google Sheet in a new tab.
+  $("#liveSheetBtn").href = `https://docs.google.com/spreadsheets/d/${DataEngine.PROJECT.sheetId}/edit`;
+  $("#sourceBadge").onclick = () => { STATE.calMonth = null; loadLive(); }; // click badge to re-pull live data
 
   $("#themeBtn").onclick = () => {
     const cur = document.documentElement.getAttribute("data-theme");
@@ -522,6 +524,12 @@ function bindEvents() {
 
   // auto-refresh live data every 90s (skip when viewing an upload)
   setInterval(() => { if (STATE.payload?.source !== "upload" && document.visibilityState === "visible") loadLive(); }, 90000);
+  // refresh on returning to the tab (e.g. after opening the live sheet), throttled to 15s
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible" || STATE.payload?.source === "upload") return;
+    if (Date.now() - (STATE._lastLoad || 0) < 15000) return;
+    loadLive();
+  });
 }
 
 (function init() {
