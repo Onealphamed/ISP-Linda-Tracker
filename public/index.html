@@ -3,22 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{{ project_name }} · Project Tracker</title>
-  <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
+  <title>Hetero ISP — Prof. Linda · Project Tracker</title>
+  <meta name="description" content="Live project-management dashboard for the Hetero ISP (Prof. Linda) / ESC endorsement program." />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+  <link rel="stylesheet" href="css/styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
-  <!-- ─── Top bar ─────────────────────────────────────────────── -->
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark">ISP</div>
       <div class="brand-text">
-        <h1 id="projectTitle">{{ project_name }}</h1>
-        <p id="projectSub"><span class="chip chip-client">{{ client }}</span><span class="chip chip-assoc">{{ association }}</span><span id="phaseChip" class="chip chip-phase"></span></p>
+        <h1 id="projectTitle">Hetero ISP — Prof. Linda</h1>
+        <p id="projectSub"><span class="chip chip-client">Hetero</span><span class="chip chip-assoc">ESC</span><span id="phaseChip" class="chip chip-phase"></span></p>
       </div>
     </div>
     <div class="topbar-actions">
@@ -42,7 +43,6 @@
     </div>
   </header>
 
-  <!-- ─── Nav tabs ────────────────────────────────────────────── -->
   <nav class="tabs" id="tabs">
     <button class="tab active" data-view="executive">Executive</button>
     <button class="tab" data-view="timeline">Timeline</button>
@@ -55,7 +55,6 @@
     <button class="tab" data-view="charts">Charts</button>
   </nav>
 
-  <!-- ─── Filter bar ──────────────────────────────────────────── -->
   <div class="filterbar" id="filterbar">
     <select class="fsel" data-filter="status"><option value="">All Status</option></select>
     <select class="fsel" data-filter="owner"><option value="">All Owners</option></select>
@@ -68,7 +67,6 @@
     </div>
   </div>
 
-  <!-- ─── Views ───────────────────────────────────────────────── -->
   <main id="main">
     <section class="view active" id="view-executive"></section>
     <section class="view" id="view-timeline"></section>
@@ -81,13 +79,9 @@
     <section class="view" id="view-charts"></section>
   </main>
 
-  <!-- ─── Loading overlay ─────────────────────────────────────── -->
   <div id="loader" class="loader"><div class="spinner"></div><p id="loaderText">Loading live data…</p></div>
-
-  <!-- ─── Toast ───────────────────────────────────────────────── -->
   <div id="toast" class="toast"></div>
 
-  <!-- ─── Drill-down modal ────────────────────────────────────── -->
   <div id="modal" class="modal-overlay">
     <div class="modal">
       <button class="modal-close" id="modalClose">&times;</button>
@@ -95,6 +89,7 @@
     </div>
   </div>
 
-  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>

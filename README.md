@@ -1,10 +1,10 @@
 # Hetero ISP — Prof. Linda · Project Tracker
 
-A live, interactive project-management dashboard that reads a Google Sheet
-workbook in real time and renders an executive-grade tracking view. Built
-the same way as the Zydus ERS Tracker (Flask + Google Sheets, deployed on
-Render) — no service-account credentials needed because the sheet is shared
-_"Anyone with the link → Viewer"_.
+A live, interactive project-management dashboard for the **Hetero ISP
+(Prof. Linda) / ESC endorsement program**. It is a **pure static site** —
+no backend. The browser reads the Google Sheet workbook live via Google's
+**gviz JSONP** endpoint (CORS-safe) and parses Excel/CSV uploads in-browser
+with **SheetJS**. Deployed as a Render **Static Site** (free, never sleeps).
 
 **Live data source:** `https://docs.google.com/spreadsheets/d/1Rzqvjm8rqbRsYB9LTu3P9FPWVTD1VZdAapKbXRdIYAI/`
 
@@ -12,70 +12,64 @@ _"Anyone with the link → Viewer"_.
 
 ## What it does
 
-The workbook's columns are **auto-mapped** — reordering columns, renaming
-them slightly, or adding new ones keeps working with no code change. Every
-KPI, chart, health band, delay and risk is **derived** from status + dates +
-owners, so the dashboard works even though this workbook has fewer columns
-than a full PM template.
+Workbook columns are **auto-mapped** — reordering, renaming, or adding
+columns keeps working with no code change. Every KPI, chart, health band,
+delay and risk is **derived** from status + dates + owners.
 
 ### Pages
-1. **Executive** — KPI cards (total, completed, active, overdue, delayed, upcoming, avg progress) + status/health/monthly charts + priority list.
-2. **Timeline** — interactive Gantt with Week / Month / Quarter zoom; overdue bars in red; today line.
-3. **Deliverables** — grouped tree (Client › Phase) with owners, dates, progress and delay.
-4. **Calendar** — month view of start dates, due dates, overdue items and meetings; prev/next/today.
+1. **Executive** — KPI cards + status/health/monthly charts + priority list.
+2. **Timeline** — Gantt with Week / Month / Quarter zoom; overdue in red; today line.
+3. **Deliverables** — grouped tree (Client › Phase) with owners, dates, progress, delay.
+4. **Calendar** — start dates, due dates, overdue items, meetings; prev/next/today.
 5. **Pending Actions** — due-in-7-days, overdue, blocked, in-review, pending approval, unassigned.
-6. **Team Workload** — tasks per owner, completed vs pending, average progress bars + charts.
-7. **Project Health** — weighted health score gauge + band breakdown + attention list.
-8. **Risks** — auto-detected: critical/missed deadlines, blocked, dependencies, missing owners, pending approvals, high workload.
-9. **Charts** — status, health, by-owner (stacked), monthly trend (line), progress buckets.
+6. **Team Workload** — tasks per owner, completed vs pending, average progress.
+7. **Project Health** — weighted health-score gauge + band breakdown.
+8. **Risks** — auto-detected: missed deadlines, blocked, dependencies, missing owners, high workload.
+9. **Charts** — status, health, by-owner (stacked), monthly trend, progress buckets.
 
 ### Everywhere
-- Global **search**, filters (status / owner / health / month), **drill-down** modal on any row or bar.
-- **Upload Excel** button — swap the data source at runtime (`.xlsx/.xls/.xlsm/.csv`), everything refreshes. Click the source badge to return to the live sheet.
-- **Dark / light** toggle, sticky nav, responsive (desktop / tablet / mobile), auto-refresh every 90s.
+- Global **search**, filters (status / owner / health / month), **drill-down** modal.
+- **Upload Excel/CSV** — parsed entirely in the browser; click the source badge to return to the live sheet.
+- **Dark / light** toggle, sticky nav, responsive, auto-refresh every 90s.
 
 ---
 
 ## Run locally
 
+No build step. Serve the `public/` folder with any static server:
+
 ```bash
-cd ISP-Linda-Tracker
-python -m venv .venv && .venv\Scripts\activate   # Windows
-pip install -r requirements.txt
-python app.py
+cd ISP-Linda-Tracker/public
+python -m http.server 5010
 ```
 
-Open http://localhost:5010
+Open http://localhost:5010 (serving over http/https is required — the gviz
+script tag won't load from a `file://` page).
 
-## Deploy to Render
+## Deploy to Render (Static Site)
 
-Push this folder to a Git repo and create a **Web Service** (or use the
-included `render.yaml` Blueprint). Key settings:
+Push to GitHub, then **New → Static Site** (or import the `render.yaml`
+Blueprint) pointing at this repo:
 
-- Build: `pip install -r requirements.txt`
-- Start: `gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 2`
+- Publish directory: `public`
+- Build command: _(none)_
+- SPA rewrite `/* → /index.html` (already in `render.yaml`)
 
-### Environment variables
-| Var | Purpose | Default |
-|-----|---------|---------|
-| `TRACKER_SHEET_ID` | Google Sheet ID | the ISP Linda sheet |
-| `TRACKER_SHEET_TAB` | Tab name (blank = first tab) | _blank_ |
-| `PROJECT_NAME` / `PROJECT_CLIENT` / `PROJECT_ASSOCIATION` | Header labels | Hetero ISP — Prof. Linda / Hetero / ESC |
-| `SECRET_KEY` | Flask session key | auto-generated on Render |
+Auto-deploys on every push to `main`. Because the sheet is read live in the
+browser, data changes never need a redeploy.
 
-## Project structure
+## Structure
 ```
-app.py            Flask routes (/, /api/data, /api/upload, /api/use-live)
-data.py           fetch → auto-map columns → normalise → derive metrics
-config.py         sheet id, project labels, status vocabulary
-templates/index.html   dashboard shell
-static/css/styles.css  theme (light + dark)
-static/js/app.js       all views, charts, filters, drill-down
+public/
+  index.html        app shell (loads Chart.js + SheetJS from CDN)
+  css/styles.css    theme (light + dark)
+  js/data.js        gviz JSONP read, column auto-map, metric derivation, upload parsing
+  js/app.js         all 9 views, charts, filters, drill-down
+render.yaml         Render Static Site blueprint
 ```
 
 ## Notes
-- The sheet must stay shared as **Anyone with the link → Viewer** for the
-  live read to work. If it's ever made private, add a Google Apps Script /
-  service-account fallback (as in the Zydus tracker).
-- Uploaded workbooks are cached in `uploads/` until replaced or until you
-  click the source badge to return to live.
+- The sheet must stay shared **Anyone with the link → Viewer** for the live
+  read to work.
+- To point at a different workbook, edit `PROJECT.sheetId` (and optionally
+  `sheetTab`) at the top of `public/js/data.js`.

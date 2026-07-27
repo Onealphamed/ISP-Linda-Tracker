@@ -1,20 +1,21 @@
+# Render blueprint — deploys the ISP Linda Tracker as a Static Site.
+# Import via Render → Blueprints (or New → Static Site and point at this repo).
+# No backend: the browser reads the live Google Sheet via the gviz JSONP
+# endpoint and parses Excel/CSV uploads with SheetJS.
 services:
   - type: web
+    runtime: static
     name: isp-linda-tracker
-    runtime: python
-    plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 2
-    envVars:
-      - key: TRACKER_SHEET_ID
-        value: 1Rzqvjm8rqbRsYB9LTu3P9FPWVTD1VZdAapKbXRdIYAI
-      - key: TRACKER_SHEET_TAB
-        sync: false
-      - key: PROJECT_NAME
-        value: Hetero ISP — Prof. Linda
-      - key: PROJECT_CLIENT
-        value: Hetero
-      - key: PROJECT_ASSOCIATION
-        value: ESC
-      - key: SECRET_KEY
-        generateValue: true
+    staticPublishPath: ./public
+    # No build step — pure static assets.
+    buildCommand: ""
+    autoDeploy: true
+    routes:
+      # SPA fallback so any path serves the app shell.
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN

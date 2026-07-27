@@ -1,8 +1,4 @@
-__pycache__/
-*.pyc
-.env
-uploads/*
-!uploads/.gitkeep
 .DS_Store
-venv/
-.venv/
+.env
+node_modules/
+*.log

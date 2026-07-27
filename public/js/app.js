@@ -49,26 +49,27 @@ function toast(msg, kind = "") {
 }
 function loader(on, text) { const l = $("#loader"); if (text) $("#loaderText").textContent = text; l.classList.toggle("hidden", !on); }
 
-/* ─── Data load ──────────────────────────────────────────────────── */
-async function loadData(url = "/api/data", opts) {
-  loader(true, "Loading data…");
+/* ─── Data load (client-side engine, no backend) ─────────────────── */
+// `producer` is an async fn returning the analytics payload.
+async function loadData(producer, loadingText = "Loading live data…", okMsg = "Live data refreshed") {
+  loader(true, loadingText);
   try {
-    const res = await fetch(url, opts);
-    const data = await res.json();
-    if (!data.ok && (!data.records || !data.records.length)) {
-      loader(false);
-      toast(data.error || "No data available from the source.", "err");
+    const data = await producer();
+    if (!data || (!data.ok && (!data.records || !data.records.length))) {
+      toast((data && data.error) || "No rows available from the source.", "err");
       if (!STATE.payload) renderEmptyAll();
       return;
     }
     applyPayload(data);
-    toast(data.source === "upload" ? `Loaded ${data.source_name}` : "Live data refreshed", "ok");
+    toast(data.source === "upload" ? `Loaded ${data.source_name}` : okMsg, "ok");
   } catch (e) {
-    toast("Failed to load data: " + e.message, "err");
+    toast("Could not load data: " + e.message, "err");
+    if (!STATE.payload) renderEmptyAll();
   } finally {
     loader(false);
   }
 }
+const loadLive = () => loadData(() => DataEngine.loadLiveData());
 
 function applyPayload(data) {
   STATE.payload = data;
@@ -667,15 +668,14 @@ function bindEvents() {
   let searchT;
   $("#globalSearch").oninput = (e) => { clearTimeout(searchT); searchT = setTimeout(() => { STATE.filters.search = e.target.value.trim(); applyFilters(); }, 220); };
 
-  $("#refreshBtn").onclick = () => { const b = $("#refreshBtn"); b.classList.add("spinning"); loadData("/api/data?refresh=1").finally(() => b.classList.remove("spinning")); };
+  $("#refreshBtn").onclick = () => { const b = $("#refreshBtn"); b.classList.add("spinning"); loadLive().finally(() => b.classList.remove("spinning")); };
   $("#uploadInput").onchange = async (e) => {
     const file = e.target.files[0]; if (!file) return;
-    const fd = new FormData(); fd.append("file", file);
     STATE.calMonth = null;
-    await loadData("/api/upload", { method: "POST", body: fd });
+    await loadData(() => DataEngine.parseWorkbookFile(file), `Reading ${file.name}…`);
     e.target.value = "";
   };
-  $("#sourceBadge").onclick = () => { if (STATE.payload?.source === "upload") { STATE.calMonth = null; loadData("/api/use-live", { method: "POST" }); } };
+  $("#sourceBadge").onclick = () => { if (STATE.payload?.source === "upload") { STATE.calMonth = null; loadLive(); } };
 
   $("#themeBtn").onclick = () => {
     const cur = document.documentElement.getAttribute("data-theme");
@@ -691,7 +691,7 @@ function bindEvents() {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
   // auto-refresh live data every 90s (skip when viewing an upload)
-  setInterval(() => { if (STATE.payload?.source !== "upload" && document.visibilityState === "visible") loadData("/api/data"); }, 90000);
+  setInterval(() => { if (STATE.payload?.source !== "upload" && document.visibilityState === "visible") loadLive(); }, 90000);
 }
 
 (function init() {
@@ -700,5 +700,5 @@ function bindEvents() {
     if (saved) { document.documentElement.setAttribute("data-theme", saved); document.body.setAttribute("data-theme", saved); }
   } catch {}
   bindEvents();
-  loadData();
+  loadLive();
 })();
