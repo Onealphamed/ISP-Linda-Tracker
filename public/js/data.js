@@ -10,9 +10,10 @@ const PROJECT = {
   client: "Hetero",
   association: "ESC",
   sheetId: "1Rzqvjm8rqbRsYB9LTu3P9FPWVTD1VZdAapKbXRdIYAI",
-  sheetTab: "", // blank = first tab
-  // gviz's JSON headers don't include the merged banner text, so this is
-  // the fallback phase label when the sheet has no explicit "Phase N" header.
+  sheetTab: "", // blank = first tab (used only by the gviz fallback)
+  sheetGid: "0", // tab gid for the CSV-export read (0 = first tab)
+  // Fallback phase label when the sheet has no explicit "Phase N" marker
+  // (only used by the gviz fallback path — the CSV export keeps real banners).
   defaultPhase: "Phase 1: Submission to ESC",
 };
 
@@ -58,8 +59,29 @@ const COLUMN_SYNONYMS = [
 const norm = (s) => (s == null ? "" : String(s)).replace(/\s+/g, " ").trim().toLowerCase();
 const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/* ─── Live read via gviz JSONP (no CORS, no backend) ─────────────── */
-function loadLiveData(timeoutMs = 12000) {
+/* ─── Live read ───────────────────────────────────────────────────
+   Primary: the raw CSV export, which PRESERVES the merged "Phase N"
+   banner rows (gviz silently drops them, collapsing every deliverable
+   into one phase). It's fetchable cross-origin from a shared sheet.
+   Fallback: gviz JSONP, in case CSV export is ever CORS-blocked. */
+async function loadLiveData() {
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${PROJECT.sheetId}/export?format=csv&gid=${PROJECT.sheetGid || "0"}`;
+    const r = await fetch(url, { credentials: "omit" });
+    if (r.ok) {
+      const rows = parseCSV(await r.text());
+      const payload = buildRecords(rows);
+      if (payload.records.length) {
+        payload.source = "google-sheet";
+        payload.source_name = "Live Sheet";
+        return payload;
+      }
+    }
+  } catch (e) { /* fall through to the gviz JSONP path */ }
+  return loadLiveViaGviz();
+}
+
+function loadLiveViaGviz(timeoutMs = 12000) {
   return new Promise((resolve, reject) => {
     const cb = "__gviz_" + Math.random().toString(36).slice(2);
     let done = false;
