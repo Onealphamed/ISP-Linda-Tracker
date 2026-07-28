@@ -205,7 +205,7 @@ table.data th { text-align: left; font-weight: 600; color: var(--text-faint); fo
 table.data td { padding: 11px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 table.data tbody tr { cursor: pointer; transition: background .12s; }
 table.data tbody tr:hover { background: var(--surface-2); }
-.cell-name { font-weight: 600; max-width: 380px; }
+.cell-name { font-weight: 600; max-width: 320px; }
 .cell-name small { display: block; font-weight: 400; color: var(--text-faint); font-size: 11px; }
 
 /* progress bar */

@@ -312,14 +312,14 @@ function renderDeliverables() {
         <span class="count">${done}/${items.length} completed</span>
       </div>
       <div class="tree-body"><div class="tbl-wrap"><table class="data"><thead><tr>
-        <th>Deliverable</th><th>Owner (OAM)</th><th>Owner (Hetero)</th><th>Status</th><th>Start</th><th>Due</th><th>Progress</th><th>Delay</th></tr></thead><tbody>
+        <th>Deliverable</th><th>Owner (OAM)</th><th>Owner (Hetero)</th><th>Status</th><th>Start Date</th><th>End Date</th><th>Progress</th><th>Delay</th></tr></thead><tbody>
         ${items.sort(sortByEnd).map((r) => `<tr onclick="openModal('${esc(r.id)}')">
           <td class="cell-name">${esc(r.deliverable)}${r.qty ? `<small>Qty: ${r.qty}</small>` : ""}</td>
           <td>${r.owner_oam ? esc(r.owner_oam) : "—"}</td>
           <td>${r.owner_hetero ? esc(r.owner_hetero) : "—"}</td>
           <td>${statusPill(r)}</td>
-          <td>${fmtDate(r.start)}</td>
-          <td>${fmtDate(r.end)}</td>
+          <td style="white-space:nowrap">${fmtDate(r.start)}</td>
+          <td style="white-space:nowrap">${fmtDate(r.end)}</td>
           <td><div style="display:flex;align-items:center;gap:8px"><div class="pbar ${r.status_class === "done" ? "g" : r.overdue ? "r" : "a"}"><i style="width:${r.progress}%"></i></div><span style="font-size:11px">${r.progress}%</span></div></td>
           <td>${r.delay > 0 ? `<span class="pill h-${r.health}">${r.delay}d</span>` : "—"}</td>
         </tr>`).join("")}
