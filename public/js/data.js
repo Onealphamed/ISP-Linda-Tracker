@@ -15,6 +15,9 @@ const PROJECT = {
   // Fallback phase label when the sheet has no explicit "Phase N" marker
   // (only used by the gviz fallback path — the CSV export keeps real banners).
   defaultPhase: "Phase 1: Submission to ESC",
+  // Meeting-notes (MOM) tab: the first of these tab names that exists in the
+  // workbook is read for the Notes view. Add any one of them as a tab.
+  notesTabs: ["MOM", "Notes", "Minutes", "MoM", "Meeting Notes", "Weekly Notes", "Minutes of Meeting"],
 };
 
 /* ─── Status vocabulary ──────────────────────────────────────────── */
@@ -356,4 +359,97 @@ function todayDate() {
 }
 const isoOf = (d) => iso(d.getFullYear(), d.getMonth() + 1, d.getDate());
 
-window.DataEngine = { PROJECT, loadLiveData, parseWorkbookFile, buildRecords };
+/* ─── Meeting notes (MOM) ─────────────────────────────────────────
+   Read from a dedicated workbook tab (first of PROJECT.notesTabs that
+   exists). Uses gviz JSONP with a sheet name — a plain notes table has
+   no merged banners, so gviz is fine here. */
+const NOTES_SYNONYMS = [
+  ["date", ["date", "meeting date", "meeting", "mom date", "week", "day", "dated"]],
+  ["action", ["action item", "action items", "action point", "action", "mom", "minutes", "discussion", "agenda", "point", "decision", "task", "item", "topic"]],
+  ["owner", ["owner", "responsible", "assigned to", "assignee", "person responsible", "by whom", "lead", "responsibility"]],
+  ["timeline", ["timeline", "target date", "target", "due date", "due", "eta", "deadline", "by when", "completion date", "expected"]],
+  ["status", ["status", "state", "progress"]],
+  ["remarks", ["remarks", "comments", "remark", "notes", "comment", "details"]],
+];
+
+function mapBySynonyms(headers, synonyms) {
+  const nh = headers.map(norm), used = new Set(), m = {};
+  for (const [role, keywords] of synonyms) {
+    let bestCol = -1, bestScore = 0;
+    nh.forEach((h, idx) => {
+      if (used.has(idx) || !h) return;
+      let score = 0;
+      for (const kw of keywords) {
+        if (h === kw) score = Math.max(score, 100);
+        else if (kw.length >= 3 && (h.startsWith(kw) || kw.startsWith(h))) score = Math.max(score, 60);
+        else if (new RegExp("\\b" + escRe(kw) + "\\b").test(h)) score = Math.max(score, 40);
+      }
+      if (score > bestScore) { bestCol = idx; bestScore = score; }
+    });
+    if (bestCol >= 0) { m[role] = bestCol; used.add(bestCol); }
+  }
+  return m;
+}
+
+// Low-level gviz JSONP fetch → resolves the table, rejects if the tab is missing.
+function gvizTable(paramStr, timeoutMs = 12000) {
+  return new Promise((resolve, reject) => {
+    const cb = "__gv_" + Math.random().toString(36).slice(2);
+    let done = false;
+    const cleanup = (s) => { try { delete window[cb]; } catch {} if (s && s.parentNode) s.parentNode.removeChild(s); };
+    window[cb] = (resp) => {
+      done = true; cleanup(document.getElementById(cb));
+      if (!resp || resp.status === "error" || !resp.table) return reject(new Error("tab not found"));
+      resolve(resp.table);
+    };
+    const s = document.createElement("script");
+    s.id = cb;
+    s.src = `https://docs.google.com/spreadsheets/d/${PROJECT.sheetId}/gviz/tq?tqx=responseHandler:${cb};out:json&headers=1&${paramStr}`;
+    s.onerror = () => { if (!done) { cleanup(s); reject(new Error("network")); } };
+    document.head.appendChild(s);
+    setTimeout(() => { if (!done) { cleanup(document.getElementById(cb)); reject(new Error("timeout")); } }, timeoutMs);
+  });
+}
+
+function parseNotes(table, map) {
+  const headers = table.cols.map((c) => (c.label || c.id || "").trim());
+  const isDate = table.cols.map((c) => c.type === "date" || c.type === "datetime");
+  map = map || mapBySynonyms(headers, NOTES_SYNONYMS);
+  const cellOf = (r, role) => {
+    const i = map[role]; if (i == null || !r.c[i]) return "";
+    const c = r.c[i]; if (c.v == null || c.v === "") return "";
+    if (isDate[i]) { const d = gvizDateToISO(c.v); if (d) return d; }
+    return c.f != null ? String(c.f).trim() : String(c.v).trim();
+  };
+  const notes = [];
+  let lastDate = ""; // forward-fill vertically-merged meeting dates
+  for (const r of table.rows) {
+    let date = cellOf(r, "date"); if (date) lastDate = date; else date = lastDate;
+    const action = cellOf(r, "action");
+    const owner = cellOf(r, "owner"), timeline = cellOf(r, "timeline");
+    const status = cellOf(r, "status"), remarks = cellOf(r, "remarks");
+    if (!action && !owner && !timeline) continue; // skip blank rows
+    notes.push({ date, action, owner, timeline, status, remarks });
+  }
+  return notes;
+}
+
+async function loadNotes() {
+  for (const tab of PROJECT.notesTabs) {
+    try {
+      const table = await gvizTable(`sheet=${encodeURIComponent(tab)}`);
+      const headers = table.cols.map((c) => (c.label || c.id || "").trim());
+      const map = mapBySynonyms(headers, NOTES_SYNONYMS);
+      // gviz returns the FIRST sheet when a sheet name doesn't exist, so only
+      // accept a table that genuinely looks like a MOM tab: it must have an
+      // "Action Item" column and must NOT be the tracker sheet.
+      const looksLikeTracker = headers.some((h) => /deliverable|tat\b/i.test(h));
+      if (map.action == null || looksLikeTracker) continue;
+      const notes = parseNotes(table, map);
+      if (notes.length) return { ok: true, tab, notes };
+    } catch (e) { /* try the next candidate tab name */ }
+  }
+  return { ok: false, notes: [] };
+}
+
+window.DataEngine = { PROJECT, loadLiveData, parseWorkbookFile, buildRecords, loadNotes };

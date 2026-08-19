@@ -14,6 +14,7 @@ const STATE = {
   calMonth: null, // {y, m}
   ganttZoom: "week",
   charts: {},
+  notes: null, // {ok, tab, notes[]} — lazy-loaded when the Notes tab opens
 };
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -136,7 +137,7 @@ function applyFilters() {
 /* ─── View routing ───────────────────────────────────────────────── */
 const RENDERERS = {
   executive: renderExecutive, timeline: renderTimeline, deliverables: renderDeliverables,
-  calendar: renderCalendar, pending: renderPending,
+  calendar: renderCalendar, pending: renderPending, notes: renderNotes,
 };
 function renderView(v) {
   STATE.view = v;
@@ -403,6 +404,70 @@ function renderPending() {
           ${statusPill(r)}
         </div>`).join("")}</div>
     </div>`).join("")}</div>`;
+}
+
+/* ─── 6. Notes / MOM ─────────────────────────────────────────────── */
+function renderNotes() {
+  const host = $("#view-notes");
+  const nd = STATE.notes;
+  if (nd === null) { host.innerHTML = `<div class="panel">${emptyBlock("Loading meeting notes…")}</div>`; loadNotesData(); return; }
+  if (!nd.ok || !nd.notes.length) { host.innerHTML = notesEmpty(); return; }
+
+  // group action items by meeting date, most recent first
+  const groups = {};
+  nd.notes.forEach((n) => {
+    const key = n.date || "Undated";
+    (groups[key] ||= []).push(n);
+  });
+  const ordered = Object.keys(groups).sort((a, b) => (parseISO(b) || 0) - (parseISO(a) || 0));
+
+  let html = `<div class="section-title">Meeting Notes (MOM) <small>${nd.notes.length} action items · ${ordered.length} meetings · from the "${esc(nd.tab)}" tab</small></div>`;
+  for (const key of ordered) {
+    const items = groups[key];
+    const label = /^\d{4}-\d{2}-\d{2}$/.test(key) ? fmtDate(key) : key;
+    html += `<div class="panel">
+      <div class="panel-head"><h3>🗓️ ${esc(label)}</h3><span class="src-badge" style="background:var(--brand-soft);color:var(--brand)">${items.length} action item${items.length > 1 ? "s" : ""}</span></div>
+      <div class="tbl-wrap"><table class="data"><thead><tr>
+        <th style="width:50%">Action Item</th><th>Owner</th><th>Timeline</th><th>Status</th></tr></thead><tbody>
+        ${items.map((n) => `<tr style="cursor:default">
+          <td class="cell-name" style="cursor:default;max-width:none">${esc(n.action) || "—"}${n.remarks ? `<small>${esc(n.remarks)}</small>` : ""}</td>
+          <td>${n.owner ? `${avatar(n.owner)} <span style="margin-left:6px">${esc(n.owner)}</span>` : "—"}</td>
+          <td style="white-space:nowrap">${esc(fmtMaybeDate(n.timeline)) || "—"}</td>
+          <td>${n.status ? `<span class="pill st-${statusClassOf(n.status)}">${esc(n.status)}</span>` : "—"}</td>
+        </tr>`).join("")}
+      </tbody></table></div></div>`;
+  }
+  host.innerHTML = html;
+}
+
+// Classify a free-text status into the same colour classes used elsewhere.
+function statusClassOf(raw) {
+  const v = (raw || "").toLowerCase();
+  if (/(done|complete|closed|resolved|approved)/.test(v)) return "done";
+  if (/(progress|ongoing|wip|started)/.test(v)) return "in_progress";
+  if (/(review|qa)/.test(v)) return "review";
+  if (/(block|hold|stuck|pending|waiting|delay)/.test(v)) return "blocked";
+  return "not_started";
+}
+function fmtMaybeDate(v) { return /^\d{4}-\d{2}-\d{2}$/.test(v || "") ? fmtDate(v) : (v || ""); }
+
+async function loadNotesData() {
+  if (STATE._notesLoading) return;
+  STATE._notesLoading = true;
+  try { STATE.notes = await DataEngine.loadNotes(); }
+  catch (e) { STATE.notes = { ok: false, notes: [] }; }
+  finally { STATE._notesLoading = false; if (STATE.view === "notes") renderNotes(); }
+}
+
+function notesEmpty() {
+  const url = `https://docs.google.com/spreadsheets/d/${DataEngine.PROJECT.sheetId}/edit`;
+  return `<div class="panel"><div class="empty">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z"/></svg>
+    <p style="font-weight:700;color:var(--text);font-size:15px">No meeting notes yet</p>
+    <p style="max-width:460px;margin:8px auto 0">Add a tab named <b>MOM</b> (or <b>Notes</b>) to the Google Sheet with columns:<br>
+    <b>Date · Action Item · Owner · Timeline</b> &nbsp;(Status optional).<br>Weekly minutes will then appear here automatically, grouped by meeting date.</p>
+    <a class="btn btn-ghost" href="${url}" target="_blank" rel="noopener" style="margin-top:16px;display:inline-flex">Open the Google Sheet</a>
+  </div></div>`;
 }
 
 /* ─── Chart builders ─────────────────────────────────────────────── */
